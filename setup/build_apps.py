@@ -290,7 +290,7 @@ def build_linux() -> None:
     desktop_dir = Path.home() / ".local" / "share" / "applications"
     desktop_dir.mkdir(parents=True, exist_ok=True)
 
-    for app_name, script, desktop_id in APPS:
+    for app_name, script, desktop_id, icon_stem in APPS:
         # Executable shell script in project root
         sh_name = desktop_id + ".sh"
         sh_path = PROJECT_DIR / sh_name
@@ -303,6 +303,7 @@ def build_linux() -> None:
 
         # XDG .desktop entry
         desktop_path = desktop_dir / f"{desktop_id}.desktop"
+        icon_path = ICONS_DIR / f"{icon_stem}.png"
         desktop_path.write_text(
             "[Desktop Entry]\n"
             "Type=Application\n"
@@ -311,6 +312,7 @@ def build_linux() -> None:
             "Terminal=false\n"
             "Categories=Network;RemoteAccess;\n"
             f"Comment=ScreenConnect {'server' if 'Agent' in app_name else 'viewer'}\n"
+            + (f"Icon={icon_path}\n" if icon_path.exists() else "")
         )
 
         print(f"  ✓  {sh_path.name}  (run from terminal / file manager)")
