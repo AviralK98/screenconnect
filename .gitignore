@@ -1,4 +1,71 @@
-certs/
-data/
+# ── Python ────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+
+# ── Virtual environments ───────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ── PyInstaller build output ───────────────────────────────────────────────
+build/
+dist/
+*.spec
+
+# ── Generated app launchers (rebuild with setup/build_apps.py) ────────────
+*.app
+*.dmg
+*.bat
+*.vbs
+*.sh
+screenconnect-*.desktop
+
+# Generated icons (rebuilt by setup/build_dist.py)
+setup/icons/
+
+# ── Sensitive / local config ───────────────────────────────────────────────
+# TLS certificates
+certs/
+
+# User database and local data
+data/
+
+# Local config overrides (keep the checked-in defaults in config/)
+# Uncomment the line below if you store personal tokens in config files
+# config/
+
+# ── macOS system files ─────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+**/.DS_Store
+
+# ── Windows system files ───────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ── Linux system files ────────────────────────────────────────────────────
+*~
+.fuse_hidden*
+
+# ── IDEs ───────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ── Logs and temp files ────────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
