@@ -1,0 +1,27 @@
+[server]
+host = "192.168.1.50"
+port = 8765
+
+[tls]
+enabled = false
+# ca_file = "certs/ca.crt"
+# fingerprint = ""
+
+[auth]
+mode  = "token"
+token = "change-this-token"
+# username = ""
+# password  = ""
+
+[reconnect]
+enabled        = true
+max_attempts   = 0
+initial_delay  = 1.0
+max_delay      = 60.0
+backoff_factor = 2.0
+
+[files]
+send_watch_dir = "~/Desktop/sc_send"
+
+[logging]
+level = "INFO"

@@ -1,0 +1,24 @@
+[server]
+host = "0.0.0.0"
+port = 8765
+
+[tls]
+enabled = false
+cert_file = "certs/agent.crt"
+key_file  = "certs/agent.key"
+# ca_file = ""
+
+[auth]
+mode  = "token"
+token = "change-this-token"
+
+[screen]
+fps          = 12
+jpeg_quality = 55
+monitor_index = 0
+
+[files]
+drop_dir = "~/Downloads/screenconnect"
+
+[logging]
+level = "INFO"

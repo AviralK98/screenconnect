@@ -1,0 +1,8 @@
+TLS encryption
+better keyboard modifier support: Ctrl, Cmd, Alt, Shift
+clipboard sync
+file transfer
+multi-monitor selection
+service/daemon auto-start
+reconnect logic
+user accounts

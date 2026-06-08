@@ -1,0 +1,15 @@
+[Unit]
+Description=ScreenConnect Agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={{PYTHON_PATH}} {{SCRIPT_PATH}} --config {{CONFIG_PATH}}
+WorkingDirectory={{WORKING_DIR}}
+Restart=always
+RestartSec=5
+StandardOutput=append:{{LOG_DIR}}/screenconnect-agent.log
+StandardError=append:{{LOG_DIR}}/screenconnect-agent-error.log
+
+[Install]
+WantedBy=default.target
