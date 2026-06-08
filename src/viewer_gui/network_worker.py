@@ -51,28 +51,37 @@ class NetworkWorker(QThread):
         self._cfg = cfg
 
     def start_connection(self) -> None:
-        if self._loop:
-            asyncio.run_coroutine_threadsafe(self._restart(), self._loop)
+        loop = self._loop
+        if loop and not loop.is_closed():
+            asyncio.run_coroutine_threadsafe(self._restart(), loop)
 
     def stop_connection(self) -> None:
-        if self._loop and self._stop_event:
-            self._loop.call_soon_threadsafe(self._stop_event.set)
+        loop = self._loop
+        stop = self._stop_event
+        if loop and not loop.is_closed() and stop:
+            try:
+                loop.call_soon_threadsafe(stop.set)
+            except RuntimeError:
+                pass
 
     def send_input(self, event: dict) -> None:
-        if self._loop and self._input_queue:
-            self._loop.call_soon_threadsafe(self._input_queue.put_nowait, event)
+        loop = self._loop
+        queue = self._input_queue
+        if loop and not loop.is_closed() and queue:
+            try:
+                loop.call_soon_threadsafe(queue.put_nowait, event)
+            except RuntimeError:
+                pass
 
     def push_clipboard(self) -> None:
-        if self._loop and self._clipboard_feature:
-            asyncio.run_coroutine_threadsafe(
-                self._do_push_clipboard(), self._loop
-            )
+        loop = self._loop
+        if loop and not loop.is_closed() and self._clipboard_feature:
+            asyncio.run_coroutine_threadsafe(self._do_push_clipboard(), loop)
 
     def pull_clipboard(self) -> None:
-        if self._loop and self._clipboard_feature:
-            asyncio.run_coroutine_threadsafe(
-                self._do_pull_clipboard(), self._loop
-            )
+        loop = self._loop
+        if loop and not loop.is_closed() and self._clipboard_feature:
+            asyncio.run_coroutine_threadsafe(self._do_pull_clipboard(), loop)
 
     # ── QThread entry ─────────────────────────────────────────────────────
 
@@ -81,8 +90,14 @@ class NetworkWorker(QThread):
         asyncio.set_event_loop(self._loop)
         self._input_queue = asyncio.Queue()
         self._stop_event = asyncio.Event()
-        self._loop.run_until_complete(self._run_client())
-        self._loop.close()
+        try:
+            self._loop.run_until_complete(self._run_client())
+        finally:
+            self._loop.close()
+            self._loop = None
+            self._input_queue = None
+            self._stop_event = None
+            self._clipboard_feature = None
 
     # ── Internal async methods ────────────────────────────────────────────
 
@@ -125,11 +140,17 @@ class NetworkWorker(QThread):
         # Patch ViewerClient to emit signals on connect/disconnect
         original_connect_once = client._connect_once
         async def _patched_connect_once(attempt):
-            self.connected.emit(f"{host}:{port}")
+            try:
+                self.connected.emit(f"{host}:{port}")
+            except RuntimeError:
+                return
             try:
                 await original_connect_once(attempt)
             finally:
-                self.disconnected.emit("")
+                try:
+                    self.disconnected.emit("")
+                except RuntimeError:
+                    pass
         client._connect_once = _patched_connect_once
 
         # Run until stop_event is set or client exits
@@ -141,6 +162,8 @@ class NetworkWorker(QThread):
         )
         for t in pending:
             t.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     async def _do_push_clipboard(self) -> None:
         pass  # handled by _GUIInputFeature forwarding to ClipboardFeature
@@ -195,7 +218,10 @@ class _GUIDisplayFeature(FeatureHandler):
         try:
             while True:
                 await asyncio.sleep(1.0)
-                self._worker.fps_updated.emit(float(self._frame_count))
+                try:
+                    self._worker.fps_updated.emit(float(self._frame_count))
+                except RuntimeError:
+                    return
                 self._frame_count = 0
         except asyncio.CancelledError:
             pass
