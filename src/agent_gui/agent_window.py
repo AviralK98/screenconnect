@@ -159,9 +159,11 @@ class AgentWindow(QMainWindow):
 
     @pyqtSlot(str)
     def _on_error(self, msg: str) -> None:
-        self._log_view.appendPlainText(f"ERROR: {msg}")
+        self._log_view.appendPlainText(f"ERROR:\n{msg}")
         self._set_running(False)
-        self._lbl_status.setText("Error — check log")
+        self._lbl_status.setText("Error — see log / terminal")
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.critical(self, "Server Error", msg)
 
     def append_log(self, line: str) -> None:
         self._log_view.appendPlainText(line)

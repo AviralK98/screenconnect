@@ -8,6 +8,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 from ..core.config import Config
+from ..agent.features.input import InputFeature
 from .agent_window import AgentWindow
 from .log_handler import QtLogHandler
 from .server_worker import ServerWorker
@@ -58,6 +59,15 @@ def main() -> None:
     app.setApplicationName("ScreenConnect Agent")
     app.setStyleSheet(DARK_STYLE)
 
+    # Show any unhandled Python exception as a dialog instead of silent crash
+    def _excepthook(exc_type, exc_value, exc_tb):
+        import traceback
+        msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        print(msg, file=sys.stderr, flush=True)
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.critical(None, "Unhandled Error", msg)
+    sys.excepthook = _excepthook
+
     qt_log = QtLogHandler()
     logging.basicConfig(
         level=getattr(logging, cfg.logging.level.upper(), logging.INFO),
@@ -65,7 +75,12 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    worker = ServerWorker()
+    # pynput's KeyboardController reads keyboard layout via macOS TSM,
+    # which must happen on the main thread. Create InputFeature here, then
+    # pass it to ServerWorker so it never touches TSM from a background thread.
+    input_feature = InputFeature()
+
+    worker = ServerWorker(input_feature=input_feature)
     worker.configure(cfg)
 
     window = AgentWindow(cfg, worker)

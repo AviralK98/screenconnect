@@ -26,8 +26,11 @@ class ServerWorker(QThread):
     client_disconnected = pyqtSignal(str)       # address
     error_occurred    = pyqtSignal(str)
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, input_feature: InputFeature, parent=None) -> None:
         super().__init__(parent)
+        # InputFeature MUST be created on the main thread (pynput reads
+        # keyboard layout via macOS TSM which requires the main queue).
+        self._input_feature = input_feature
         self._cfg: Config | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
@@ -36,17 +39,20 @@ class ServerWorker(QThread):
         self._cfg = cfg
 
     def stop_server(self) -> None:
-        if self._loop and self._stop_event:
+        if self._loop and not self._loop.is_closed() and self._stop_event:
             self._loop.call_soon_threadsafe(self._stop_event.set)
 
     def run(self) -> None:
+        import traceback
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         self._stop_event = asyncio.Event()
         try:
             self._loop.run_until_complete(self._run_server())
         except Exception as exc:
-            self.error_occurred.emit(str(exc))
+            tb = traceback.format_exc()
+            print(tb, flush=True)           # always visible in terminal
+            self.error_occurred.emit(tb)    # shown in GUI
         finally:
             self._loop.close()
             self.server_stopped.emit()
@@ -55,7 +61,7 @@ class ServerWorker(QThread):
         cfg = self._cfg
         registry = FeatureRegistry()
         registry.register(ScreenCaptureFeature(cfg))
-        registry.register(InputFeature())
+        registry.register(self._input_feature)   # created on main thread
         registry.register(ClipboardFeature())
         registry.register(FileTransferFeature(cfg))
 
