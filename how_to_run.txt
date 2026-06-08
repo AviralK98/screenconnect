@@ -1,0 +1,3 @@
+pip install -r requirements.txt
+python agent_main.py              # on the Mac being controlled
+python viewer_main.py --host <ip> # on the controlling machine
