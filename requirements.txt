@@ -9,3 +9,4 @@ bcrypt>=4.0
 tomli>=2.0; python_version < "3.11"
 watchdog>=4.0
 cryptography>=42.0
+PyQt6>=6.6

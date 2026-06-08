@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
+from typing import Callable, Optional
 
 import websockets
 import websockets.exceptions
@@ -12,7 +14,6 @@ from ..core.feature import FeatureRegistry
 from ..core.session import Session
 from ..core.transport import Connection, build_server_ssl_context
 from ..core.crypto import generate_self_signed
-from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -23,10 +24,14 @@ class AgentServer:
         cfg: Config,
         registry: FeatureRegistry,
         auth: Authenticator,
+        on_client_connect: Optional[Callable[[str, str], None]] = None,
+        on_client_disconnect: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._cfg = cfg
         self._registry = registry
         self._auth = auth
+        self._on_client_connect = on_client_connect
+        self._on_client_disconnect = on_client_disconnect
 
     async def run(self) -> None:
         ssl_ctx = self._build_ssl()
@@ -57,8 +62,11 @@ class AgentServer:
             return
 
         session = Session(user=result.user)
-        log.info("Session started for user=%s from %s",
-                 result.user.name if result.user else "token", conn.remote_address)
+        user_label = result.user.name if result.user else "token"
+        log.info("Session started for user=%s from %s", user_label, conn.remote_address)
+
+        if self._on_client_connect:
+            self._on_client_connect(conn.remote_address, user_label)
 
         await self._registry.broadcast_connect(session, conn)
         try:
@@ -71,6 +79,8 @@ class AgentServer:
             log.exception("Unexpected error in session from %s", conn.remote_address)
         finally:
             await self._registry.broadcast_disconnect(session)
+            if self._on_client_disconnect:
+                self._on_client_disconnect(conn.remote_address)
 
     def _build_ssl(self):
         cfg = self._cfg.tls
