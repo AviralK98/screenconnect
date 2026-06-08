@@ -111,16 +111,27 @@ class ScreenWidget(QWidget):
         btn = self._qt_button(event.button())
         if btn:
             self._send({"type": MessageType.MOUSE_CLICK.value,
-                        "button": btn, "action": "click", "x": x, "y": y})
+                        "button": btn, "action": "down", "x": x, "y": y})
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        x, y = self._to_remote(event.pos())
+        btn = self._qt_button(event.button())
+        if btn:
+            self._send({"type": MessageType.MOUSE_CLICK.value,
+                        "button": btn, "action": "up", "x": x, "y": y})
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         x, y = self._to_remote(event.pos())
         btn = self._qt_button(event.button())
         if btn:
             self._send({"type": MessageType.MOUSE_CLICK.value,
-                        "button": btn, "action": "click", "x": x, "y": y})
+                        "button": btn, "action": "down", "x": x, "y": y})
             self._send({"type": MessageType.MOUSE_CLICK.value,
-                        "button": btn, "action": "click", "x": x, "y": y})
+                        "button": btn, "action": "up", "x": x, "y": y})
+            self._send({"type": MessageType.MOUSE_CLICK.value,
+                        "button": btn, "action": "down", "x": x, "y": y})
+            self._send({"type": MessageType.MOUSE_CLICK.value,
+                        "button": btn, "action": "up", "x": x, "y": y})
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         delta = event.angleDelta()
