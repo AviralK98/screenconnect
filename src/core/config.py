@@ -5,6 +5,30 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+
+def get_user_config_dir() -> Path:
+    """Return platform-appropriate writable config directory.
+
+    Used when running as a frozen app (PyInstaller).
+    Development runs use the project's config/ folder instead.
+    """
+    if sys.platform == "darwin":
+        d = Path.home() / "Library" / "Application Support" / "ScreenConnect"
+    elif sys.platform == "win32":
+        d = Path(os.environ.get("APPDATA", str(Path.home()))) / "ScreenConnect"
+    else:
+        d = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "ScreenConnect"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def get_default_config_path(filename: str) -> Path:
+    """Return the right config path for the current run mode."""
+    if getattr(sys, "frozen", False):
+        return get_user_config_dir() / filename
+    # Development: look next to the project root
+    return Path(__file__).parent.parent.parent / "config" / filename
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:

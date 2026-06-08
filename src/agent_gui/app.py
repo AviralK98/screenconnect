@@ -7,7 +7,7 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
-from ..core.config import Config
+from ..core.config import Config, get_default_config_path
 from ..agent.features.input import InputFeature
 from .agent_window import AgentWindow
 from .log_handler import QtLogHandler
@@ -50,8 +50,8 @@ QSplitter::handle { background-color: #444; }
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="ScreenConnect Agent")
-    parser.add_argument("--config", default="config/agent.toml")
-    args = parser.parse_args()
+    parser.add_argument("--config", default=str(get_default_config_path("agent.toml")))
+    args, _ = parser.parse_known_args()   # ignore macOS -psn_* launch args
 
     cfg = Config.load(args.config)
 
