@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         worker.clipboard_received.connect(self._on_clipboard)
         worker.status_changed.connect(self._on_status)
         worker.fps_updated.connect(self._on_fps)
+        worker.file_status.connect(self._on_file_status)
 
     # ── UI construction ────────────────────────────────────────────────────
 
@@ -162,6 +163,10 @@ class MainWindow(QMainWindow):
     @pyqtSlot(str)
     def _on_status(self, text: str) -> None:
         self.statusBar().showMessage(text, 3000)
+
+    @pyqtSlot(str)
+    def _on_file_status(self, msg: str) -> None:
+        self.statusBar().showMessage(msg, 5000)
 
     @pyqtSlot(float)
     def _on_fps(self, fps: float) -> None:

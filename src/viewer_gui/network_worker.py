@@ -36,6 +36,7 @@ class NetworkWorker(QThread):
     clipboard_received  = pyqtSignal(str)
     status_changed      = pyqtSignal(str)
     fps_updated         = pyqtSignal(float)
+    file_status         = pyqtSignal(str)           # file transfer feedback
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -44,6 +45,7 @@ class NetworkWorker(QThread):
         self._input_queue: asyncio.Queue | None = None
         self._stop_event: asyncio.Event | None = None
         self._clipboard_feature: ClipboardFeature | None = None
+        self._active_transport: "Connection | None" = None
 
     # ── Public API (called from Qt main thread) ───────────────────────────
 
@@ -98,6 +100,7 @@ class NetworkWorker(QThread):
             self._input_queue = None
             self._stop_event = None
             self._clipboard_feature = None
+            self._active_transport = None
 
     # ── Internal async methods ────────────────────────────────────────────
 
@@ -117,13 +120,43 @@ class NetworkWorker(QThread):
         self._clipboard_feature = clipboard
         files      = FileTransferFeature(self._cfg)
 
-        # Wire clipboard signal
+        # Capture live transport so GUI-triggered clipboard operations have it
+        async def _clipboard_on_connect(session, transport):  # noqa: ARG001
+            self._active_transport = transport
+        async def _clipboard_on_disconnect(session):  # noqa: ARG001
+            self._active_transport = None
+        clipboard.on_connect = _clipboard_on_connect
+        clipboard.on_disconnect = _clipboard_on_disconnect
+
+        # Wire clipboard data → Qt signal (so received text goes to main thread)
         original_handle = clipboard.handle
         async def _clipboard_handle(session, transport, msg):
             await original_handle(session, transport, msg)
             if isinstance(msg, Message) and msg.type == MessageType.CLIPBOARD_DATA:
                 self.clipboard_received.emit(msg.payload.get("content", ""))
         clipboard.handle = _clipboard_handle
+
+        # Wire file transfer status signals
+        _orig_send_file = files._send_file
+        async def _notifying_send_file(path):
+            await _orig_send_file(path)
+            try:
+                self.file_status.emit(f"Sent: {path.name}")
+            except RuntimeError:
+                pass
+        files._send_file = _notifying_send_file
+
+        _orig_files_handle = files.handle
+        async def _files_handle(session, transport, msg):
+            await _orig_files_handle(session, transport, msg)
+            if isinstance(msg, Message) and msg.type == MessageType.FILE_ERROR:
+                tid = msg.payload.get("transfer_id", "")[:8]
+                reason = msg.payload.get("reason", "unknown error")
+                try:
+                    self.file_status.emit(f"Transfer {tid} failed: {reason}")
+                except RuntimeError:
+                    pass
+        files.handle = _files_handle
 
         registry = FeatureRegistry()
         registry.register(display)
@@ -166,10 +199,14 @@ class NetworkWorker(QThread):
             await asyncio.gather(*pending, return_exceptions=True)
 
     async def _do_push_clipboard(self) -> None:
-        pass  # handled by _GUIInputFeature forwarding to ClipboardFeature
+        transport = self._active_transport
+        if transport and self._clipboard_feature:
+            await self._clipboard_feature.push_clipboard(transport)
 
     async def _do_pull_clipboard(self) -> None:
-        pass
+        transport = self._active_transport
+        if transport and self._clipboard_feature:
+            await self._clipboard_feature.pull_clipboard(transport)
 
     def _build_auth(self):
         cfg = self._cfg.auth
