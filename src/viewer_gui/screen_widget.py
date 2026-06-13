@@ -80,13 +80,11 @@ class ScreenWidget(QWidget):
 
         scaled = self._pixmap.scaled(
             self.size(),
-            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
-        x = (self.width()  - scaled.width())  // 2
-        y = (self.height() - scaled.height()) // 2
-        painter.drawPixmap(x, y, scaled)
-        self._render_rect = (x, y, scaled.width(), scaled.height())
+        painter.drawPixmap(0, 0, scaled)
+        self._render_rect = (0, 0, scaled.width(), scaled.height())
 
     # ── Coordinate mapping ─────────────────────────────────────────────────
 
