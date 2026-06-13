@@ -13,7 +13,9 @@ from PyQt6.QtWidgets import (
 
 from ..core import permissions
 from ..core.config import Config
+from ..agent.web_server import WebViewerServer
 from .log_handler import QtLogHandler
+from .mobile_dialog import MobileViewerDialog
 from .settings_widget import SettingsWidget
 from .server_worker import ServerWorker
 
@@ -24,6 +26,7 @@ class AgentWindow(QMainWindow):
         self._cfg = cfg
         self._worker = worker
         self._start_time: datetime.datetime | None = None
+        self._web_server: WebViewerServer | None = None
 
         self.setWindowTitle("ScreenConnect Agent")
         self.resize(820, 580)
@@ -87,6 +90,13 @@ class AgentWindow(QMainWindow):
         self._btn_perm.clicked.connect(self._on_grant_clicked)
         self._btn_perm.hide()
         layout.addWidget(self._btn_perm)
+
+        layout.addSpacing(8)
+
+        self._btn_mobile = QPushButton("📱 Mobile")
+        self._btn_mobile.setToolTip("View & control from a phone browser")
+        self._btn_mobile.clicked.connect(self._open_mobile_dialog)
+        layout.addWidget(self._btn_mobile)
 
         layout.addSpacing(8)
 
@@ -246,6 +256,41 @@ class AgentWindow(QMainWindow):
         permissions.request_control()
         permissions.open_control_settings()
 
+    # ── Mobile web viewer ────────────────────────────────────────────────────
+
+    def _open_mobile_dialog(self) -> None:
+        MobileViewerDialog(self._cfg, self, self).exec()
+
+    def start_web_viewer(self) -> None:
+        if self._web_server is not None:
+            return
+        scheme = "wss" if self._cfg.tls.enabled else "ws"
+        self._web_server = WebViewerServer(
+            host="0.0.0.0",
+            http_port=self._cfg.server.web_port,
+            ws_port=self._cfg.server.port,
+            ws_scheme=scheme,
+        )
+        try:
+            self._web_server.start()
+        except OSError as e:
+            self._web_server = None
+            QMessageBox.warning(
+                self, "Web Viewer",
+                f"Could not start the web viewer on port "
+                f"{self._cfg.server.web_port}:\n{e}\n\n"
+                "The port may already be in use — change [server] web_port "
+                "in the agent config.",
+            )
+
+    def stop_web_viewer(self) -> None:
+        if self._web_server is not None:
+            self._web_server.stop()
+            self._web_server = None
+
+    def web_viewer_running(self) -> bool:
+        return self._web_server is not None and self._web_server.running
+
     def _refresh_permission(self) -> None:
         granted = permissions.control_granted(use_cache=False)
         # On non-macOS there is no gate; keep the button hidden.
@@ -265,6 +310,7 @@ class AgentWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self._perm_timer.stop()
+        self.stop_web_viewer()
         self._worker.stop_server()
         self._worker.wait(2000)
         event.accept()

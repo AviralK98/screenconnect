@@ -14,6 +14,7 @@ A self-hosted, peer-to-peer remote desktop application. Run the **Agent** on the
 | [[Getting Started/Installation - Windows\|Install on Windows]] | Build & install the Windows launchers |
 | [[Usage/Using the Agent\|Using the Agent]] | Start the server, manage connections |
 | [[Usage/Using the Viewer\|Using the Viewer]] | Connect, control, transfer files |
+| [[Usage/Mobile Viewer\|Mobile Viewer]] | Control from your phone's browser |
 | [[Architecture/Overview\|Architecture Overview]] | How everything fits together |
 | [[Development/Building Apps\|Building Apps]] | Produce standalone distributable apps |
 | [[Troubleshooting/Common Issues\|Troubleshooting]] | Fixes for common problems |
@@ -27,6 +28,7 @@ A self-hosted, peer-to-peer remote desktop application. Run the **Agent** on the
 - Clipboard sync (push & pull between agent and viewer)
 - File transfer (drag-and-drop or watch folder)
 - Multi-monitor selection
+- Mobile web viewer — control from any phone browser, no app needed
 - Reconnect with exponential back-off
 - TLS encryption (optional, self-signed cert)
 - Token auth + named user accounts

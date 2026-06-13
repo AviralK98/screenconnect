@@ -35,3 +35,7 @@ class Session:
     monitors: list[Monitor] = field(default_factory=list)
     transfer_registry: dict[str, Any] = field(default_factory=dict)
     reconnect_status: str = ""
+    # Frame scaling: native captured pixel size vs the size actually encoded
+    # and sent. Used to map viewer click coords back to real screen pixels.
+    frame_native: tuple[int, int] = (0, 0)
+    frame_sent: tuple[int, int] = (0, 0)

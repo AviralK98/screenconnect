@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>ScreenConnect — Mobile Viewer</title>
+<style>
+  :root { --bg:#1a1a1a; --bar:#2b2b2b; --accent:#4a7cc7; --ok:#4caf50; --warn:#c77c1e; --err:#c0392b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:#e0e0e0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    overflow:hidden; overscroll-behavior:none; }
+  /* Lock the page to the visible viewport so rotation always refills it.
+     dvh tracks the *dynamic* viewport (accounts for mobile browser chrome). */
+  body { position:fixed; inset:0; width:100vw; height:100vh; height:100dvh; }
+  /* Scale-to-fit, YouTube/Netflix style: the whole remote screen is always
+     visible, letterboxed, never cropped or distorted. */
+  #screen { position:absolute; inset:0; width:100%; height:100%;
+    object-fit:contain; background:#0d0d0d; touch-action:none; display:block; }
+  #screen.fill { object-fit:fill; }   /* optional: stretch to fill (distorts) */
+  #kbd { position:absolute; left:-9999px; top:0; opacity:0; height:1px; width:1px; }
+
+  /* Magnifier loupe */
+  #loupe { position:fixed; width:140px; height:140px; border-radius:50%;
+    border:3px solid rgba(255,255,255,.85); box-shadow:0 3px 14px rgba(0,0,0,.6);
+    z-index:35; pointer-events:none; display:none; background:#000; overflow:hidden; }
+
+  /* Toolbar — floating Liquid Glass capsule */
+  #bar { position:absolute; left:50%; z-index:20;
+    bottom:calc(14px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    max-width:calc(100vw - 20px);
+    display:flex; gap:7px; padding:9px; flex-wrap:wrap; justify-content:center;
+    background:rgba(38,40,46,0.42);
+    -webkit-backdrop-filter:blur(26px) saturate(190%);
+    backdrop-filter:blur(26px) saturate(190%);
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:26px;
+    box-shadow:0 10px 36px rgba(0,0,0,0.42),
+               inset 0 1px 0 rgba(255,255,255,0.30),
+               inset 0 -1px 1px rgba(0,0,0,0.20);
+    transition:transform .32s cubic-bezier(.32,1.4,.5,1), opacity .28s ease; }
+  /* Top specular sheen */
+  #bar::before { content:""; position:absolute; inset:0; border-radius:inherit;
+    pointer-events:none;
+    background:linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.04) 36%, transparent 70%); }
+  #bar.hidden { transform:translateX(-50%) translateY(150%); opacity:0; pointer-events:none; }
+
+  .btn { position:relative; flex:0 0 auto; min-width:46px; height:46px; padding:0 14px;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background:rgba(255,255,255,0.10); color:#f2f3f5;
+    border:1px solid rgba(255,255,255,0.16); border-radius:16px;
+    font-size:15px; font-weight:500; user-select:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.22);
+    transition:background .18s ease, transform .08s ease, box-shadow .18s ease; }
+  .btn:active { background:rgba(255,255,255,0.24); transform:scale(.93); }
+  .btn.on { background:rgba(74,124,199,0.55); border-color:rgba(130,175,255,0.65); color:#fff;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.35), 0 0 14px rgba(90,150,255,0.45); }
+  .btn.click { background:rgba(74,124,199,0.58); border-color:rgba(130,175,255,0.6);
+    color:#fff; font-weight:600; box-shadow:inset 0 1px 0 rgba(255,255,255,0.35); }
+  .btn.click:active { background:rgba(76,175,80,0.7); border-color:rgba(120,220,130,0.7); }
+  .btn.danger { background:rgba(192,57,43,0.30); border-color:rgba(255,140,130,0.4); }
+  .btn.danger:active { background:rgba(192,57,43,0.7); }
+  .spacer { flex:1 1 auto; }
+  select.btn { -webkit-appearance:none; appearance:none; padding-right:26px; }
+
+  /* Pull-up handle — always visible, reveals the toolbar */
+  #handle { position:absolute; left:50%; transform:translateX(-50%); z-index:21;
+    bottom:calc(10px + env(safe-area-inset-bottom)); padding:8px 18px;
+    display:flex; align-items:center; gap:9px;
+    background:rgba(38,40,46,0.42);
+    -webkit-backdrop-filter:blur(22px) saturate(190%);
+    backdrop-filter:blur(22px) saturate(190%);
+    border:1px solid rgba(255,255,255,0.18); border-radius:18px;
+    box-shadow:0 6px 22px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.26);
+    touch-action:none; transition:opacity .25s ease; }
+  #handle .grip { width:34px; height:5px; border-radius:3px;
+    background:rgba(255,255,255,0.85); }
+  #handle .lbl { font-size:12px; color:#f0f1f3; font-weight:500; }
+  #handle.faded { opacity:0; pointer-events:none; }   /* hides while toolbar is open */
+
+  /* Status pill — always visible, tap to show/hide the controls */
+  #status { position:absolute; top:calc(10px + env(safe-area-inset-top)); left:50%;
+    transform:translateX(-50%); z-index:30; padding:8px 16px; border-radius:18px;
+    background:rgba(38,40,46,0.42);
+    -webkit-backdrop-filter:blur(22px) saturate(190%);
+    backdrop-filter:blur(22px) saturate(190%);
+    border:1px solid rgba(255,255,255,0.18); font-size:12px; color:#f2f3f5;
+    box-shadow:0 6px 22px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.26);
+    display:flex; align-items:center; gap:7px; user-select:none; }
+  #status .caret { color:#bcd6ff; font-size:11px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#777; }
+  .dot.ok { background:var(--ok); } .dot.err { background:var(--err); }
+
+  /* Connect overlay */
+  #overlay { position:absolute; inset:0; z-index:40; display:flex; align-items:center;
+    justify-content:center; background:rgba(10,10,12,.96); padding:24px; }
+  .card { width:100%; max-width:360px; background:#242424; border:1px solid #3a3a3a;
+    border-radius:16px; padding:22px; }
+  .card h1 { margin:0 0 4px; font-size:20px; }
+  .card p { margin:0 0 18px; color:#999; font-size:13px; }
+  .field { margin-bottom:14px; }
+  .field label { display:block; font-size:12px; color:#aaa; margin-bottom:5px; }
+  .field input { width:100%; height:46px; padding:0 12px; font-size:16px; color:#fff;
+    background:#1a1a1a; border:1px solid #444; border-radius:10px; }
+  .row2 { display:flex; gap:10px; }
+  .primary { width:100%; height:48px; margin-top:6px; font-size:16px; font-weight:600;
+    color:#fff; background:var(--accent); border:none; border-radius:11px; }
+  .primary:active { background:#3d6bb0; }
+  #err { color:#e57373; font-size:13px; min-height:18px; margin-top:8px; text-align:center; }
+  .hint { margin-top:14px; font-size:12px; color:#777; line-height:1.5; }
+</style>
+</head>
+<body>
+  <canvas id="screen"></canvas>
+  <input id="kbd" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+  <div id="status">
+    <span class="dot" id="dot"></span><span id="statusText">Not connected</span>
+    <span class="caret" id="statusCaret"></span>
+  </div>
+
+  <canvas id="loupe" width="140" height="140"></canvas>
+
+  <div id="handle" style="display:none"><div class="grip"></div><span class="lbl">Controls</span></div>
+
+  <div id="bar" class="hidden" style="display:none">
+    <div class="btn" id="btnKbd">⌨</div>
+    <div class="btn click" id="btnClick">🖱 Click</div>
+    <div class="btn" id="btnRight">R-Click</div>
+    <div class="btn" id="btnZoom">🔍 Zoom</div>
+    <div class="btn" id="btnDrag">✋ Drag</div>
+    <div class="btn" id="btnFit">Stretch</div>
+    <div class="btn" id="btnFull">⛶ Full</div>
+    <select class="btn" id="selMon" title="Monitor"></select>
+    <div class="btn danger" id="btnDisc">Disconnect</div>
+    <div class="btn" id="btnHide">▼ Hide</div>
+  </div>
+
+  <div id="overlay">
+    <div class="card">
+      <h1>ScreenConnect</h1>
+      <p>Connect to control the remote machine.</p>
+      <div class="row2">
+        <div class="field" style="flex:2"><label>Host</label><input id="inHost" inputmode="decimal"></div>
+        <div class="field" style="flex:1"><label>Port</label><input id="inPort" inputmode="numeric"></div>
+      </div>
+      <div class="field"><label>Access token</label><input id="inToken" type="password" placeholder="agent auth token"></div>
+      <button class="primary" id="btnConnect">Connect</button>
+      <div id="err"></div>
+      <div class="hint">
+        <b>Tap the status bar</b> at the top any time to show/hide the controls.<br>
+        Drag to aim, then <b>🖱 Click</b> &nbsp;·&nbsp; <b>🔍 Zoom</b> to magnify small targets &nbsp;·&nbsp; <b>two fingers</b> = scroll &nbsp;·&nbsp; <b>⌨</b> to type.<br>
+        For fullscreen: Android tap <b>⛶ Full</b>; iPhone use Share → <b>Add to Home Screen</b>.
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+// Injected by the agent's web server:
+const WS_PORT   = "__WS_PORT__";
+const WS_SCHEME = "__WS_SCHEME__";
+
+const $ = (id) => document.getElementById(id);
+const canvas = $("screen");
+const ctx = canvas.getContext("2d", { alpha:false });
+
+let ws = null;
+let frameW = 0, frameH = 0;
+let authed = false;
+let dragMode = false;     // hold-and-drag toggle
+let rightOnce = false;    // next tap is a right-click
+let drawing = false;      // bitmap render in flight
+
+// ── Connection ──────────────────────────────────────────────────────────────
+function setStatus(text, cls) {
+  $("statusText").textContent = text;
+  const dot = $("dot"); dot.className = "dot" + (cls ? " " + cls : "");
+}
+
+function connect() {
+  const host  = $("inHost").value.trim() || location.hostname;
+  const port  = $("inPort").value.trim() || WS_PORT;
+  const token = $("inToken").value;
+  localStorage.setItem("sc_host", host);
+  localStorage.setItem("sc_port", port);
+  localStorage.setItem("sc_token", token);
+
+  $("err").textContent = "";
+  setStatus("Connecting…", "");
+  enterFullscreen();   // user gesture (button tap) — works on Android/desktop
+  const url = `${WS_SCHEME}://${host}:${port}`;
+  try { ws = new WebSocket(url); }
+  catch (e) { $("err").textContent = "Bad address: " + e.message; return; }
+  ws.binaryType = "arraybuffer";
+
+  ws.onopen = () => { send({ type:"auth", token }); };
+  ws.onmessage = onMessage;
+  ws.onclose = () => {
+    authed = false;
+    setStatus("Disconnected", "err");
+    $("bar").style.display = "none";
+    $("handle").style.display = "none";
+    $("overlay").style.display = "flex";
+  };
+  ws.onerror = () => {
+    $("err").textContent = "Connection failed. Check host, port and network.";
+    setStatus("Error", "err");
+  };
+}
+
+function disconnect() { if (ws) { try { ws.close(); } catch(_){} } }
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+function onMessage(ev) {
+  if (typeof ev.data === "string") {
+    let msg; try { msg = JSON.parse(ev.data); } catch(_) { return; }
+    handleControl(msg);
+  } else {
+    handleBinary(new Uint8Array(ev.data));
+  }
+}
+
+function handleControl(msg) {
+  switch (msg.type) {
+    case "auth_ok":
+      authed = true;
+      setStatus("Connected", "ok");
+      $("overlay").style.display = "none";
+      $("bar").style.display = "flex";
+      $("handle").style.display = "flex";
+      showBar();          // briefly reveal controls, then auto-hide
+      break;
+    case "auth_fail":
+      $("err").textContent = "Auth failed: " + (msg.reason || "invalid token");
+      setStatus("Auth failed", "err");
+      disconnect();
+      break;
+    case "monitor_list":
+      populateMonitors(msg.monitors || []);
+      break;
+  }
+}
+
+function handleBinary(bytes) {
+  if (bytes.length < 1) return;
+  const type = bytes[0];
+  if (type === 0x01) {                       // FRAME → JPEG
+    if (drawing) return;                     // drop frame if still decoding
+    drawing = true;
+    const blob = new Blob([bytes.subarray(1)], { type:"image/jpeg" });
+    createImageBitmap(blob).then(bmp => {
+      if (bmp.width !== frameW || bmp.height !== frameH) {
+        frameW = bmp.width; frameH = bmp.height;
+        canvas.width = frameW; canvas.height = frameH;
+      }
+      ctx.drawImage(bmp, 0, 0);
+      bmp.close && bmp.close();
+      drawing = false;
+    }).catch(() => { drawing = false; });
+  }
+}
+
+// ── Monitors ────────────────────────────────────────────────────────────────
+function populateMonitors(mons) {
+  const sel = $("selMon");
+  sel.innerHTML = "";
+  mons.forEach(m => {
+    const o = document.createElement("option");
+    o.value = m.id;
+    o.textContent = (m.name || ("Display " + (m.id + 1))) + ` (${m.width}×${m.height})`;
+    sel.appendChild(o);
+  });
+  sel.style.display = mons.length > 1 ? "" : "none";
+}
+$("selMon").addEventListener("change", e => {
+  send({ type:"monitor_select", monitor_id: parseInt(e.target.value, 10) });
+});
+
+// ── Coordinate mapping (handles both contain and fill/stretch) ───────────────
+function toRemote(clientX, clientY) {
+  if (!frameW || !frameH) return null;
+  const rect = canvas.getBoundingClientRect();
+  let dispW, dispH, offX, offY;
+  if (fitMode === "fill") {                       // stretched to fill screen
+    dispW = rect.width; dispH = rect.height;
+    offX = rect.left;   offY = rect.top;
+  } else {                                        // aspect-correct (contain)
+    const scale = Math.min(rect.width / frameW, rect.height / frameH);
+    dispW = frameW * scale; dispH = frameH * scale;
+    offX = rect.left + (rect.width - dispW) / 2;
+    offY = rect.top + (rect.height - dispH) / 2;
+  }
+  let x = (clientX - offX) / dispW * frameW;
+  let y = (clientY - offY) / dispH * frameH;
+  x = Math.max(0, Math.min(Math.round(x), frameW - 1));
+  y = Math.max(0, Math.min(Math.round(y), frameH - 1));
+  return [x, y];
+}
+
+let lastX = 0, lastY = 0;   // current remote cursor position
+function mouseMove(x, y)        { lastX = x; lastY = y; send({ type:"mouse_move", x, y }); }
+function mouseBtn(btn, action, x, y) { lastX = x; lastY = y; send({ type:"mouse_click", button:btn, action, x, y }); }
+function scroll(dy)             { send({ type:"mouse_scroll", dx:0, dy }); }
+
+// ── Magnifier loupe (precise aiming for small targets) ───────────────────────
+let zoomMode = false;
+const LOUPE_SIZE = 140, LOUPE_ZOOM = 3;
+const loupe = $("loupe");
+const lctx = loupe.getContext("2d");
+function showLoupe(p, clientX, clientY) {
+  // Position the loupe above the finger (or below if near the top edge).
+  let lx = clientX - LOUPE_SIZE / 2;
+  let ly = clientY - LOUPE_SIZE - 30;
+  if (ly < 10) ly = clientY + 30;
+  lx = Math.max(8, Math.min(lx, window.innerWidth - LOUPE_SIZE - 8));
+  loupe.style.left = lx + "px";
+  loupe.style.top  = ly + "px";
+  loupe.style.display = "block";
+
+  // Draw a magnified crop of the live frame centred on the target point.
+  const src = LOUPE_SIZE / LOUPE_ZOOM;   // source region size in frame pixels
+  lctx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE);
+  lctx.imageSmoothingEnabled = false;
+  try {
+    lctx.drawImage(canvas, p[0] - src / 2, p[1] - src / 2, src, src,
+                   0, 0, LOUPE_SIZE, LOUPE_SIZE);
+  } catch (_) {}
+  // Crosshair marking the exact click point.
+  const c = LOUPE_SIZE / 2;
+  lctx.strokeStyle = "rgba(255,70,70,.95)"; lctx.lineWidth = 1.5;
+  lctx.beginPath();
+  lctx.moveTo(c, c - 12); lctx.lineTo(c, c + 12);
+  lctx.moveTo(c - 12, c); lctx.lineTo(c + 12, c);
+  lctx.stroke();
+}
+function hideLoupe() { loupe.style.display = "none"; }
+
+// ── Touch handling ───────────────────────────────────────────────────────────
+let tStartX = 0, tStartY = 0, tStartT = 0, tMoved = false;
+let twoFinger = false, lastMidY = 0, twoMoved = false;
+const TAP_MS = 350, TAP_PX = 12;
+
+function midpointY(t) { return (t[0].clientY + t[1].clientY) / 2; }
+
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  if (e.touches.length === 2) {
+    twoFinger = true; twoMoved = false; lastMidY = midpointY(e.touches);
+    return;
+  }
+  if (twoFinger) return;
+  const t = e.touches[0];
+  const p = toRemote(t.clientX, t.clientY); if (!p) return;
+  tStartX = t.clientX; tStartY = t.clientY; tStartT = Date.now(); tMoved = false;
+  if (zoomMode) { mouseMove(p[0], p[1]); showLoupe(p, t.clientX, t.clientY); return; }
+  mouseMove(p[0], p[1]);
+  if (dragMode) mouseBtn("left", "down", p[0], p[1]);
+}, { passive:false });
+
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  if (twoFinger && e.touches.length === 2) {
+    const midY = midpointY(e.touches);
+    const dy = midY - lastMidY;
+    if (Math.abs(dy) > 6) { scroll(dy < 0 ? -1 : 1); lastMidY = midY; twoMoved = true; }
+    return;
+  }
+  if (twoFinger) return;
+  const t = e.touches[0];
+  const p = toRemote(t.clientX, t.clientY); if (!p) return;
+  if (zoomMode) { mouseMove(p[0], p[1]); showLoupe(p, t.clientX, t.clientY); return; }
+  if (Math.abs(t.clientX - tStartX) > TAP_PX || Math.abs(t.clientY - tStartY) > TAP_PX) tMoved = true;
+  mouseMove(p[0], p[1]);
+}, { passive:false });
+
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  if (twoFinger) {
+    if (e.touches.length === 0) {
+      // a quick two-finger tap with no scroll = right click
+      if (!twoMoved) {
+        const p = toRemote(tStartX || 0, tStartY || 0);
+        if (p) { mouseBtn("right", "down", p[0], p[1]); mouseBtn("right", "up", p[0], p[1]); }
+      }
+      twoFinger = false;
+    }
+    return;
+  }
+  if (zoomMode) {
+    // Precise click at the crosshair position you aimed with the loupe.
+    hideLoupe();
+    const btn = rightOnce ? "right" : "left";
+    rightOnce = false; $("btnRight").classList.remove("on");
+    mouseBtn(btn, "down", lastX, lastY);
+    mouseBtn(btn, "up",   lastX, lastY);
+    return;
+  }
+  const p = toRemote(tStartX, tStartY); if (!p) return;
+  if (dragMode) {
+    mouseBtn("left", "up", p[0], p[1]);
+    return;
+  }
+  const quick = (Date.now() - tStartT) < TAP_MS;
+  if (quick && !tMoved) {
+    const btn = rightOnce ? "right" : "left";
+    rightOnce = false; $("btnRight").classList.remove("on");
+    mouseBtn(btn, "down", p[0], p[1]);
+    mouseBtn(btn, "up",   p[0], p[1]);
+  }
+}, { passive:false });
+
+// ── Toolbar show / hide ──────────────────────────────────────────────────────
+let barHideTimer = null;
+function updateCaret() {
+  $("statusCaret").textContent = authed ? (barVisible() ? "▴" : "▾") : "";
+}
+function showBar() {
+  $("bar").classList.remove("hidden");
+  $("handle").classList.add("faded");
+  updateCaret();
+  scheduleHide();
+}
+function hideBar() {
+  $("bar").classList.add("hidden");
+  $("handle").classList.remove("faded");
+  updateCaret();
+  if (barHideTimer) { clearTimeout(barHideTimer); barHideTimer = null; }
+}
+function scheduleHide() {
+  if (barHideTimer) clearTimeout(barHideTimer);
+  barHideTimer = setTimeout(hideBar, 4000);   // auto-hide after 4s idle
+}
+function barVisible() { return !$("bar").classList.contains("hidden"); }
+
+// Tap or swipe-up on the handle to reveal; swipe-down on the bar to dismiss.
+const handle = $("handle");
+let hStartY = 0;
+handle.addEventListener("touchstart", (e) => { hStartY = e.touches[0].clientY; e.preventDefault(); }, { passive:false });
+handle.addEventListener("touchend",   (e) => {
+  const endY = (e.changedTouches[0] || {}).clientY || hStartY;
+  // tap (little movement) or an upward swipe both open the bar
+  if (hStartY - endY > -20) showBar();
+  e.preventDefault();
+}, { passive:false });
+handle.addEventListener("click", showBar);
+
+// The top status pill is ALWAYS visible (even when mobile browser chrome
+// covers the bottom), so use it as the reliable show/hide toggle.
+$("status").addEventListener("click", () => {
+  if (!authed) return;
+  barVisible() ? hideBar() : showBar();
+});
+
+// ── Fullscreen ───────────────────────────────────────────────────────────────
+function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
+function fsSupported() {
+  const el = document.documentElement;
+  return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+}
+function enterFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (req) { try { const p = req.call(el); if (p && p.catch) p.catch(()=>{}); } catch(_){} }
+}
+function exitFullscreen() {
+  const ex = document.exitFullscreen || document.webkitExitFullscreen;
+  if (ex) { try { ex.call(document); } catch(_){} }
+}
+$("btnFull").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (fsElement()) { exitFullscreen(); return; }
+  if (fsSupported()) { enterFullscreen(); }
+  else {
+    alert("This browser can't make a tab fullscreen.\n\n" +
+          "On iPhone: tap the Share button, then 'Add to Home Screen', and " +
+          "open ScreenConnect from your home screen for a fullscreen, app-like view.");
+  }
+});
+
+// Keep the bar alive while it's being used.
+$("bar").addEventListener("touchstart", scheduleHide, { passive:true });
+$("bar").addEventListener("click", scheduleHide);
+
+// Swipe down on the bar to hide it.
+let bStartY = 0;
+$("bar").addEventListener("touchstart", (e) => { bStartY = e.touches[0].clientY; }, { passive:true });
+$("bar").addEventListener("touchend", (e) => {
+  const endY = (e.changedTouches[0] || {}).clientY || bStartY;
+  if (endY - bStartY > 40) hideBar();
+}, { passive:true });
+
+$("btnHide").addEventListener("click", (e) => { e.stopPropagation(); hideBar(); });
+
+// ── Fit / Stretch ────────────────────────────────────────────────────────────
+let fitMode = localStorage.getItem("sc_fit") || "contain";
+function applyFit() {
+  canvas.classList.toggle("fill", fitMode === "fill");
+  $("btnFit").textContent = (fitMode === "fill") ? "Fit" : "Stretch";
+  $("btnFit").classList.toggle("on", fitMode === "fill");
+}
+$("btnFit").addEventListener("click", (e) => {
+  e.stopPropagation();
+  fitMode = (fitMode === "fill") ? "contain" : "fill";
+  localStorage.setItem("sc_fit", fitMode);
+  applyFit();
+});
+
+// ── Toolbar buttons ──────────────────────────────────────────────────────────
+$("btnClick").addEventListener("click", () => {
+  // Click exactly where the cursor already is — no finger over the target.
+  const btn = rightOnce ? "right" : "left";
+  rightOnce = false; $("btnRight").classList.remove("on");
+  mouseBtn(btn, "down", lastX, lastY);
+  mouseBtn(btn, "up",   lastX, lastY);
+});
+$("btnDrag").addEventListener("click", () => {
+  dragMode = !dragMode; $("btnDrag").classList.toggle("on", dragMode);
+  if (dragMode) { zoomMode = false; $("btnZoom").classList.remove("on"); }
+});
+$("btnZoom").addEventListener("click", () => {
+  zoomMode = !zoomMode; $("btnZoom").classList.toggle("on", zoomMode);
+  if (zoomMode) { dragMode = false; $("btnDrag").classList.remove("on"); }
+  else hideLoupe();
+});
+$("btnRight").addEventListener("click", () => {
+  rightOnce = !rightOnce; $("btnRight").classList.toggle("on", rightOnce);
+});
+$("btnDisc").addEventListener("click", disconnect);
+$("btnConnect").addEventListener("click", connect);
+$("btnKbd").addEventListener("click", () => { $("kbd").focus(); });
+
+// ── Keyboard ─────────────────────────────────────────────────────────────────
+const CONTROL_KEYS = {
+  "Enter":"enter", "Backspace":"backspace", "Tab":"tab", "Escape":"esc",
+  "ArrowUp":"up", "ArrowDown":"down", "ArrowLeft":"left", "ArrowRight":"right",
+  "Delete":"delete", "Home":"home", "End":"end", "PageUp":"page_up", "PageDown":"page_down",
+  "F1":"f1","F2":"f2","F3":"f3","F4":"f4","F5":"f5","F6":"f6",
+  "F7":"f7","F8":"f8","F9":"f9","F10":"f10","F11":"f11","F12":"f12",
+};
+function evMods(e) {
+  const m = [];
+  if (e.ctrlKey)  m.push("ctrl");
+  if (e.shiftKey) m.push("shift");
+  if (e.altKey)   m.push("alt");
+  if (e.metaKey)  m.push("cmd");
+  return m;
+}
+const kbd = $("kbd");
+kbd.addEventListener("keydown", (e) => {
+  const ctrl = CONTROL_KEYS[e.key];
+  if (ctrl) {
+    send({ type:"key", key:ctrl, modifiers:evMods(e), action:"press" });
+    e.preventDefault(); return;
+  }
+  // Desktop shortcuts: Ctrl/Cmd/Alt + a printable key
+  if ((e.ctrlKey || e.metaKey || e.altKey) && e.key.length === 1) {
+    send({ type:"key", key:e.key.toLowerCase(), modifiers:evMods(e), action:"press" });
+    e.preventDefault(); return;
+  }
+});
+kbd.addEventListener("beforeinput", (e) => {
+  if (e.inputType === "insertText" && e.data) {
+    for (const ch of e.data) send({ type:"key", key:ch, modifiers:[], action:"press" });
+  } else if (e.inputType === "deleteContentBackward") {
+    send({ type:"key", key:"backspace", modifiers:[], action:"press" });
+  } else if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") {
+    send({ type:"key", key:"enter", modifiers:[], action:"press" });
+  }
+  e.preventDefault();
+  kbd.value = "";
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+(function init() {
+  $("inHost").value  = localStorage.getItem("sc_host")  || location.hostname;
+  $("inPort").value  = localStorage.getItem("sc_port")  || WS_PORT;
+  $("inToken").value = localStorage.getItem("sc_token") || "";
+  setStatus("Not connected", "");
+  applyFit();
+})();
+</script>
+</body>
+</html>

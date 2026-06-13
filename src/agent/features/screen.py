@@ -69,12 +69,11 @@ class ScreenCaptureFeature(FeatureHandler):
 
     async def _capture_loop(self, session: "Session", transport: "Connection") -> None:
         delay = 1.0 / self._cfg.screen.fps
-        quality = self._cfg.screen.jpeg_quality
 
         try:
             while True:
                 start = time.monotonic()
-                frame = self._grab(session.selected_monitor)
+                frame = self._grab(session)
                 await transport.send_binary(pack_binary(BinaryMessageType.FRAME, frame))
                 elapsed = time.monotonic() - start
                 await asyncio.sleep(max(0.0, delay - elapsed))
@@ -83,16 +82,40 @@ class ScreenCaptureFeature(FeatureHandler):
         except Exception:
             log.exception("Screen capture error")
 
-    def _grab(self, monitor_id: int) -> bytes:
+    def _grab(self, session: "Session") -> bytes:
         with mss.mss() as sct:
             monitors = sct.monitors
             # monitors[0] is virtual "all screens", monitors[1..] are real
-            idx = monitor_id + 1 if monitor_id + 1 < len(monitors) else 1
+            idx = session.selected_monitor + 1 if session.selected_monitor + 1 < len(monitors) else 1
             raw = sct.grab(monitors[idx])
             img = Image.frombytes("RGB", raw.size, raw.rgb)
+
+            native = img.size                       # (w, h) in native pixels
+            out_size = self._target_size(native)
+            if out_size != native:
+                img = img.resize(out_size, Image.BILINEAR)
+
+            # Record sizes so InputFeature can map clicks back to real pixels.
+            session.frame_native = native
+            session.frame_sent = out_size
+
             buf = BytesIO()
             img.save(buf, format="JPEG", quality=self._cfg.screen.jpeg_quality)
             return buf.getvalue()
+
+    def _target_size(self, native: tuple[int, int]) -> tuple[int, int]:
+        mode = self._cfg.screen.scale_mode
+        if mode == "off":
+            return native
+        tw, th = self._cfg.screen.target_width, self._cfg.screen.target_height
+        nw, nh = native
+        if nw <= 0 or nh <= 0:
+            return native
+        if mode == "stretch":
+            return (tw, th)
+        # "fit": preserve aspect, scale to fit the target box (up or down)
+        scale = min(tw / nw, th / nh)
+        return (max(1, round(nw * scale)), max(1, round(nh * scale)))
 
     @staticmethod
     def _enumerate_monitors() -> list[Monitor]:

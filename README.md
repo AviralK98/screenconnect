@@ -13,6 +13,7 @@ Run the **Agent** on the machine you want to control. Run the **Viewer** on the 
 - Clipboard sync — push and pull between agent and viewer
 - File transfer — drag-and-drop or auto-watched folder
 - Multi-monitor selection
+- **Mobile web viewer** — control from any phone browser, nothing to install
 - Automatic reconnect with exponential back-off
 - TLS encryption (optional)
 - Token auth and named user accounts
@@ -86,6 +87,7 @@ Full documentation is in the `docs/` folder — open it as an [Obsidian](https:/
 | Topic | File |
 |-------|------|
 | Quick start | `docs/Getting Started/Quick Start.md` |
+| Mobile viewer | `docs/Usage/Mobile Viewer.md` |
 | macOS install | `docs/Getting Started/Installation - Mac.md` |
 | Linux install | `docs/Getting Started/Installation - Linux.md` |
 | Architecture | `docs/Architecture/Overview.md` |

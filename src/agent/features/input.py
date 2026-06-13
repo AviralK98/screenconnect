@@ -86,6 +86,21 @@ class InputFeature(FeatureHandler):
                     pass
         return allowed
 
+    @staticmethod
+    def _scale_coords(session: "Session", x: int, y: int) -> tuple[int, int]:
+        """Map coords from the sent (possibly scaled) frame back to real pixels.
+
+        The viewer sends clicks in the coordinate space of the frame it
+        received. If the agent scaled that frame (e.g. to FHD), undo the
+        scale here so the cursor lands on the right spot.
+        """
+        sw, sh = session.frame_sent
+        nw, nh = session.frame_native
+        if sw and sh and (sw != nw or sh != nh):
+            x = round(x * nw / sw)
+            y = round(y * nh / sh)
+        return x, y
+
     async def handle(self, session: "Session", transport: "Connection", msg) -> None:
         # Gate every input event on the OS control permission. Until it is
         # granted, incoming mouse/keyboard events are dropped rather than
@@ -96,7 +111,8 @@ class InputFeature(FeatureHandler):
         t = msg.type
 
         if t == MessageType.MOUSE_MOVE:
-            self._mouse.position = (int(msg.payload["x"]), int(msg.payload["y"]))
+            x, y = self._scale_coords(session, int(msg.payload["x"]), int(msg.payload["y"]))
+            self._mouse.position = (x, y)
 
         elif t == MessageType.MOUSE_CLICK:
             btn_name = msg.payload.get("button", "left")
@@ -106,7 +122,8 @@ class InputFeature(FeatureHandler):
                 "middle": Button.middle,
             }.get(btn_name, Button.left)
             action = msg.payload.get("action", "click")
-            self._mouse.position = (int(msg.payload["x"]), int(msg.payload["y"]))
+            x, y = self._scale_coords(session, int(msg.payload["x"]), int(msg.payload["y"]))
+            self._mouse.position = (x, y)
             if action == "click":
                 self._mouse.click(button)
             elif action == "down":

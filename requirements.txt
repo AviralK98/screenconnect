@@ -10,3 +10,4 @@ tomli>=2.0; python_version < "3.11"
 watchdog>=4.0
 cryptography>=42.0
 PyQt6>=6.6
+qrcode>=7.0          # optional: QR code for the mobile web viewer

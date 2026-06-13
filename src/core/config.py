@@ -39,6 +39,7 @@ else:
 class ServerConfig:
     host: str = "0.0.0.0"
     port: int = 8765
+    web_port: int = 8080   # mobile web viewer HTTP port
 
 
 @dataclass
@@ -63,6 +64,14 @@ class ScreenConfig:
     fps: int = 12
     jpeg_quality: int = 55
     monitor_index: int = 0
+    # Output resolution scaling.
+    #   scale_mode: "off"     = send at the display's native resolution
+    #               "fit"     = scale to fit within target_*, keeping aspect
+    #                           (upscales smaller displays, downscales Retina)
+    #               "stretch" = force exactly target_* (may distort aspect)
+    scale_mode: str = "fit"
+    target_width: int = 1920
+    target_height: int = 1080
 
 
 @dataclass
@@ -104,7 +113,7 @@ class Config:
                 raw = tomllib.load(f)
 
         cfg = cls(
-            server=ServerConfig(**{**ServerConfig.__dataclass_fields__, **raw.get("server", {})}),
+            server=ServerConfig(**{k: v for k, v in {**vars(ServerConfig()), **raw.get("server", {})}.items() if k in ServerConfig.__dataclass_fields__}),
             tls=TLSConfig(**{k: v for k, v in {**vars(TLSConfig()), **raw.get("tls", {})}.items() if k in TLSConfig.__dataclass_fields__}),
             auth=AuthConfig(**{k: v for k, v in {**vars(AuthConfig()), **raw.get("auth", {})}.items() if k in AuthConfig.__dataclass_fields__}),
             screen=ScreenConfig(**{k: v for k, v in {**vars(ScreenConfig()), **raw.get("screen", {})}.items() if k in ScreenConfig.__dataclass_fields__}),

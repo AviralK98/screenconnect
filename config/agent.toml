@@ -1,6 +1,7 @@
 [server]
 host = "0.0.0.0"
 port = 8765
+web_port = 8080   # mobile web viewer (browse here from your phone)
 
 [tls]
 enabled = false
@@ -16,6 +17,11 @@ token = "change-this-token"
 fps          = 12
 jpeg_quality = 55
 monitor_index = 0
+# Output resolution. scale_mode: "off" (native) | "fit" (FHD, keep aspect) |
+# "stretch" (force exact target, may distort).
+scale_mode    = "fit"
+target_width  = 1920
+target_height = 1080
 
 [files]
 drop_dir = "~/Downloads/screenconnect"
