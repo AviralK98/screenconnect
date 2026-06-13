@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import Controller as KeyboardController, Key
 
 from ...core.feature import FeatureHandler
 from ...core.protocol import MessageType
+from ...core import permissions
 
 if TYPE_CHECKING:
     from ...core.session import Session
@@ -60,8 +61,38 @@ class InputFeature(FeatureHandler):
     def __init__(self) -> None:
         self._mouse = MouseController()
         self._keyboard = KeyboardController()
+        # Tracks the last-known control-permission state so we only log
+        # the transition once, not on every dropped event.
+        self._control_allowed: bool | None = None
+        # Optional callback(bool) invoked when the permission state flips.
+        self.on_control_state_changed: Callable[[bool], None] | None = None
+
+    def _check_control(self) -> bool:
+        """Return whether input injection is permitted, logging transitions."""
+        allowed = permissions.control_granted()
+        if allowed != self._control_allowed:
+            self._control_allowed = allowed
+            if allowed:
+                log.info("Remote control permission granted — input enabled.")
+            else:
+                log.warning(
+                    "Remote control blocked: Accessibility permission not granted. "
+                    "Grant it in System Settings → Privacy & Security → Accessibility."
+                )
+            if self.on_control_state_changed:
+                try:
+                    self.on_control_state_changed(allowed)
+                except Exception:
+                    pass
+        return allowed
 
     async def handle(self, session: "Session", transport: "Connection", msg) -> None:
+        # Gate every input event on the OS control permission. Until it is
+        # granted, incoming mouse/keyboard events are dropped rather than
+        # silently failing at the pynput layer.
+        if not self._check_control():
+            return
+
         t = msg.type
 
         if t == MessageType.MOUSE_MOVE:

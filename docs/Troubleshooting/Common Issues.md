@@ -74,6 +74,28 @@ If the app appears as "Python" in the list, that's correct — grant it there.
 
 ---
 
+## Viewer connects but can't control the agent (mouse/keyboard do nothing)
+
+This is the **control permission gate** working as intended. The agent blocks
+keyboard/mouse injection until macOS Accessibility permission is granted.
+
+1. On the agent, click the **⚠ Grant Control Access** button in the header
+   (or click Start and choose **Open System Settings**).
+2. In **System Settings → Privacy & Security → Accessibility**, enable
+   **ScreenConnect Agent** (or **Python**).
+3. Control activates automatically within ~2 seconds — no restart needed.
+
+The agent log will show:
+```
+Remote control blocked: Accessibility permission not granted.
+...
+Remote control permission granted — input enabled.
+```
+
+Screen viewing, clipboard, and file transfer work regardless of this gate.
+
+---
+
 ## File transfer fails / file is corrupted
 
 The receiver verifies SHA-256. If the checksum mismatches, the file is discarded and an error is shown in the status bar. Retry the transfer. If it fails consistently, check for network packet loss.
