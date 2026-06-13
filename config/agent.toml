@@ -14,12 +14,12 @@ mode  = "token"
 token = "change-this-token"
 
 [screen]
-fps          = 12
-jpeg_quality = 55
+fps          = 15
+jpeg_quality = 82
 monitor_index = 0
 # Output resolution. scale_mode: "off" (native) | "fit" (FHD, keep aspect) |
 # "stretch" (force exact target, may distort).
-scale_mode    = "fit"
+scale_mode    = "off"
 target_width  = 1920
 target_height = 1080
 

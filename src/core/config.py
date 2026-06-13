@@ -69,7 +69,7 @@ class ScreenConfig:
     #               "fit"     = scale to fit within target_*, keeping aspect
     #                           (upscales smaller displays, downscales Retina)
     #               "stretch" = force exactly target_* (may distort aspect)
-    scale_mode: str = "fit"
+    scale_mode: str = "off"
     target_width: int = 1920
     target_height: int = 1080
 

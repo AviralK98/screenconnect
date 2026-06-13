@@ -499,7 +499,7 @@ $("bar").addEventListener("touchend", (e) => {
 $("btnHide").addEventListener("click", (e) => { e.stopPropagation(); hideBar(); });
 
 // ── Fit / Stretch ────────────────────────────────────────────────────────────
-let fitMode = localStorage.getItem("sc_fit") || "contain";
+let fitMode = "contain";   // always start aspect-correct (no distortion)
 function applyFit() {
   canvas.classList.toggle("fill", fitMode === "fill");
   $("btnFit").textContent = (fitMode === "fill") ? "Fit" : "Stretch";
@@ -508,8 +508,7 @@ function applyFit() {
 $("btnFit").addEventListener("click", (e) => {
   e.stopPropagation();
   fitMode = (fitMode === "fill") ? "contain" : "fill";
-  localStorage.setItem("sc_fit", fitMode);
-  applyFit();
+  applyFit();   // session-only; never persisted, so it can't get stuck
 });
 
 // ── Toolbar buttons ──────────────────────────────────────────────────────────
