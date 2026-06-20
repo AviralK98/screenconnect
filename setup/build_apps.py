@@ -29,14 +29,13 @@ PROJECT_DIR = Path(__file__).parent.parent.resolve()
 ICONS_DIR  = PROJECT_DIR / "setup" / "icons"
 PYTHON = sys.executable   # same Python that has all requirements installed
 
+# One unified app that can act as both Agent and Viewer.
 APPS = [
-    ("ScreenConnect Agent",  "agent_gui.py",  "screenconnect-agent",  "agent"),
-    ("ScreenConnect Viewer", "viewer_gui.py", "screenconnect-viewer", "viewer"),
+    ("ScreenConnect", "screenconnect.py", "screenconnect", "app"),
 ]
 
 ICON_CONFIGS = [
-    ("agent",  (76,  175,  80), "A"),   # green
-    ("viewer", (74,  124, 199), "V"),   # blue
+    ("app", (74, 124, 199), "S"),   # blue "S"
 ]
 
 # ── Icon generation ───────────────────────────────────────────────────────────
@@ -212,9 +211,7 @@ def build_macos() -> None:
             if icns_src.exists():
                 shutil.copy2(icns_src, res_dir / icns_name)
 
-            bundle_id = "com.screenconnect." + (
-                "agent" if "Agent" in app_name else "viewer"
-            )
+            bundle_id = "com.screenconnect.app"
             plist: dict = {
                 "CFBundleExecutable":            app_name,
                 "CFBundleIdentifier":            bundle_id,
@@ -252,7 +249,7 @@ def build_windows() -> None:
     if not pythonw.exists():
         pythonw = Path(PYTHON)   # fallback — console will briefly flash
 
-    for app_name, script, _ in APPS:
+    for app_name, script, _, _ in APPS:
         project_win = str(PROJECT_DIR)
         script_win  = str(PROJECT_DIR / script)
 
@@ -311,7 +308,7 @@ def build_linux() -> None:
             f"Exec={_sh(PYTHON)} {_sh(PROJECT_DIR / script)}\n"
             "Terminal=false\n"
             "Categories=Network;RemoteAccess;\n"
-            f"Comment=ScreenConnect {'server' if 'Agent' in app_name else 'viewer'}\n"
+            "Comment=Remote desktop — share this screen or control another\n"
             + (f"Icon={icon_path}\n" if icon_path.exists() else "")
         )
 

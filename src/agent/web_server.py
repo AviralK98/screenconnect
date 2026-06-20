@@ -13,12 +13,23 @@ from __future__ import annotations
 import http.server
 import logging
 import socket
+import sys
 import threading
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-_HTML_PATH = Path(__file__).parent.parent / "web" / "viewer.html"
+
+def _html_path() -> Path:
+    """Locate viewer.html in both source runs and PyInstaller bundles."""
+    if getattr(sys, "frozen", False):
+        # PyInstaller unpacks bundled data under sys._MEIPASS
+        base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent.parent.parent))
+        return base / "src" / "web" / "viewer.html"
+    return Path(__file__).parent.parent / "web" / "viewer.html"
+
+
+_HTML_PATH = _html_path()
 
 
 def local_ip() -> str:

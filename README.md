@@ -29,17 +29,18 @@ Run the **Agent** on the machine you want to control. Run the **Viewer** on the 
 pip install -r requirements.txt
 ```
 
-**2. Start the Agent** (machine being controlled)
+**2. Launch the app** (same app on both machines)
 ```bash
-python3 agent_gui.py
+python3 screenconnect.py
 ```
-Click **Start**. Note your machine's IP address.
+A launcher appears with two choices:
+- **Share This Screen (Agent)** — on the machine you want to control. Click **Start**, note its IP.
+- **Control a Machine (Viewer)** — on your machine. Enter the agent's IP, port (8765), and the token from `config/agent.toml`, then **Connect**.
 
-**3. Start the Viewer** (your machine)
-```bash
-python3 viewer_gui.py
-```
-Enter the agent's IP, port (8765), and the auth token from `config/agent.toml`. Click **Connect**.
+You can open both modes from the same app — a machine can host and control at the same time.
+
+> The old `agent_gui.py` / `viewer_gui.py` still work if you want to open one mode directly:
+> `python3 screenconnect.py --mode agent` or `--mode viewer`.
 
 ---
 

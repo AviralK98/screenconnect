@@ -32,9 +32,14 @@ BUILD    = PROJECT / "build"
 ICONS    = PROJECT / "setup" / "icons"
 
 APPS = [
-    # (display name,        entry script,    bundle id suffix, icon stem)
-    ("ScreenConnect Agent",  "agent_gui.py",  "agent",          "agent"),
-    ("ScreenConnect Viewer", "viewer_gui.py", "viewer",         "viewer"),
+    # (display name,   entry script,       bundle id suffix, icon stem)
+    ("ScreenConnect",  "screenconnect.py",  "app",            "app"),
+]
+
+# Data files to bundle into the app (the mobile web viewer page is loaded
+# at runtime, so it must travel inside the .app/.exe).
+DATA_FILES = [
+    (str(PROJECT / "src" / "web" / "viewer.html"), "src/web"),
 ]
 
 # pynput and mss load their platform backends dynamically — PyInstaller
@@ -68,8 +73,7 @@ def make_icons() -> None:
     ICONS.mkdir(parents=True, exist_ok=True)
 
     configs = [
-        ("agent",  (76,  175,  80), "A"),   # green
-        ("viewer", (74,  124, 199), "V"),   # blue
+        ("app", (74, 124, 199), "S"),   # blue "S"
     ]
 
     for stem, color, letter in configs:
@@ -140,6 +144,15 @@ def _hidden_import_args() -> list[str]:
     return args
 
 
+def _data_args() -> list[str]:
+    # PyInstaller uses os.pathsep between src and dest ( : on POSIX, ; on Win )
+    import os
+    args = []
+    for src, dest in DATA_FILES:
+        args += ["--add-data", f"{src}{os.pathsep}{dest}"]
+    return args
+
+
 def _icon_arg(stem: str) -> list[str]:
     if sys.platform == "darwin":
         p = ICONS / f"{stem}.icns"
@@ -163,7 +176,7 @@ def run_pyinstaller(app_name: str, script: str, id_suffix: str, icon_stem: str) 
         "--distpath",  str(DIST),
         "--workpath",  str(BUILD),
         "--specpath",  str(BUILD),
-    ] + _hidden_import_args() + _icon_arg(icon_stem)
+    ] + _hidden_import_args() + _data_args() + _icon_arg(icon_stem)
 
     if os_name == "Darwin":
         args += ["--osx-bundle-identifier", f"com.screenconnect.{id_suffix}"]
