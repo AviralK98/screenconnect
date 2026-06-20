@@ -37,9 +37,20 @@ class SettingsWidget(QWidget):
         w = QWidget()
         f = QFormLayout(w)
         self._host = QLineEdit()
+        self._host.setPlaceholderText("0.0.0.0  (all interfaces — recommended)")
         self._port = QSpinBox()
         self._port.setRange(1, 65535)
         f.addRow("Bind host:", self._host)
+
+        host_hint = QLabel(
+            "Leave as 0.0.0.0 to listen on every network interface. Don't put "
+            "your own LAN IP here — pinning to one adapter can make the agent "
+            "unreachable from phones/other devices (e.g. behind a VPN)."
+        )
+        host_hint.setWordWrap(True)
+        host_hint.setStyleSheet("color: #888; font-size: 11px;")
+        f.addRow("", host_hint)
+
         f.addRow("Port:", self._port)
         return w
 
@@ -106,7 +117,7 @@ class SettingsWidget(QWidget):
     # ── Load / save ───────────────────────────────────────────────────────
 
     def load(self) -> None:
-        self._host.setText(self._cfg.server.host)
+        self._host.setText(self._cfg.server.host or "0.0.0.0")
         self._port.setValue(self._cfg.server.port)
 
         if self._cfg.auth.mode == "users":
@@ -124,7 +135,8 @@ class SettingsWidget(QWidget):
         self._tls_key.setText(self._cfg.tls.key_file)
 
     def save(self) -> None:
-        self._cfg.server.host = self._host.text().strip()
+        # An empty host means "all interfaces"; never leave it blank.
+        self._cfg.server.host = self._host.text().strip() or "0.0.0.0"
         self._cfg.server.port = self._port.value()
 
         self._cfg.auth.mode  = "users" if self._rb_users.isChecked() else "token"

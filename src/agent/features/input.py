@@ -87,18 +87,30 @@ class InputFeature(FeatureHandler):
         return allowed
 
     @staticmethod
-    def _scale_coords(session: "Session", x: int, y: int) -> tuple[int, int]:
-        """Map coords from the sent (possibly scaled) frame back to real pixels.
+    def _to_screen_coords(session: "Session", x: int, y: int) -> tuple[int, int]:
+        """Map viewer frame coords to absolute virtual-desktop pixels.
 
-        The viewer sends clicks in the coordinate space of the frame it
-        received. If the agent scaled that frame (e.g. to FHD), undo the
-        scale here so the cursor lands on the right spot.
+        Two corrections are applied:
+
+        1. Undo any frame scaling. The viewer sends clicks in the coordinate
+           space of the frame it received; if the agent scaled that frame
+           (e.g. to FHD), undo the scale so the cursor lands on the right spot.
+        2. Add the selected monitor's offset. The captured frame's (0, 0) is
+           the top-left of the selected monitor, which sits at
+           (monitor.x, monitor.y) on the virtual desktop. pynput positions the
+           cursor in global coordinates, so without this offset clicks on a
+           secondary display land on the primary one.
         """
         sw, sh = session.frame_sent
         nw, nh = session.frame_native
         if sw and sh and (sw != nw or sh != nh):
             x = round(x * nw / sw)
             y = round(y * nh / sh)
+        mon = next((m for m in session.monitors
+                    if m.id == session.selected_monitor), None)
+        if mon:
+            x += mon.x
+            y += mon.y
         return x, y
 
     async def handle(self, session: "Session", transport: "Connection", msg) -> None:
@@ -111,7 +123,7 @@ class InputFeature(FeatureHandler):
         t = msg.type
 
         if t == MessageType.MOUSE_MOVE:
-            x, y = self._scale_coords(session, int(msg.payload["x"]), int(msg.payload["y"]))
+            x, y = self._to_screen_coords(session, int(msg.payload["x"]), int(msg.payload["y"]))
             self._mouse.position = (x, y)
 
         elif t == MessageType.MOUSE_CLICK:
@@ -122,7 +134,7 @@ class InputFeature(FeatureHandler):
                 "middle": Button.middle,
             }.get(btn_name, Button.left)
             action = msg.payload.get("action", "click")
-            x, y = self._scale_coords(session, int(msg.payload["x"]), int(msg.payload["y"]))
+            x, y = self._to_screen_coords(session, int(msg.payload["x"]), int(msg.payload["y"]))
             self._mouse.position = (x, y)
             if action == "click":
                 self._mouse.click(button)
